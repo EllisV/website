@@ -1,0 +1,16 @@
+# humanstxt.org/
+# The humans responsible & technology colophon
+
+# TEAM
+
+    Eligijus Vitkauskas -- Author -- @EligijusV
+
+# THANKS
+
+    Ernestas Poškus
+
+# TECHNOLOGY COLOPHON
+
+    HTML5, CSS3, JavaScript
+    Jekyll, HTML5 Boilerplate
+    jQuery, Respond.js, Html5Shiv
