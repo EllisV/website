@@ -8,6 +8,8 @@ del = require 'del'
 browserSync = require('browser-sync').create()
 # Need a command for reloading webpages using BrowserSync
 reload = browserSync.reload
+# FS library is used for creating .nojekyll file
+fs = require 'fs'
 
 gulp.task 'clean', del.bind(null, ['dist'])
 
@@ -21,7 +23,7 @@ gulp.task 'styles', ->
     .pipe $.sass(includePaths: ['src/_assets/bower_components'])
     .pipe $.autoprefixer(['> 1%', 'last 2 versions', 'Firefox ESR', 'Opera 12.1'], cascade: true)
     .pipe $.minifyCss(compatibility: 'ie8')
-    .pipe gulp.dest('dist/assets/css/')
+    .pipe gulp.dest('dist/css/')
     .pipe $.size(title: 'styles')
 
 gulp.task 'scripts', ->
@@ -41,7 +43,7 @@ gulp.task 'scripts', ->
       .pipe $.if(/[.]coffee$/, $.coffee(bare: true).on('error', $.util.log))
       .pipe $.concat(file)
       .pipe $.uglify()
-      .pipe gulp.dest('dist/assets/js/')
+      .pipe gulp.dest('dist/js/')
       .pipe $.size(title: file)
 
 gulp.task 'html', ['jekyll:prod'], ->
@@ -79,12 +81,21 @@ gulp.task 'default', ['styles', 'scripts', 'jekyll:dev', 'serve', 'watch']
 gulp.task 'check', ['jslint', 'coffeelint', 'doctor']
 
 # Builds the site but doesn't serve it to you
-gulp.task 'build', ['clean', 'jekyll:prod', 'html', 'scripts', 'styles']
+gulp.task 'build', ['jekyll:prod', 'html', 'scripts', 'styles']
 
 # Task to upload your site to your personal GH Pages repo
-gulp.task 'deploy', ['build'], ->
+gulp.task 'deploy', ->
+  # TODO: fix a bug that .nojekyll is not added when .publish does not exist (the first time)
+  try
+    fs.mkdirSync '.publish'
+  catch e
+    throw e if e.code != 'EEXIST'
+
+  fs.closeSync fs.openSync('.publish/.nojekyll', 'w')
+
   gulp.src './dist/**/*'
     .pipe $.ghPages(
       remoteUrl: 'git@github.com:EllisV/ellisv.github.io.git'
       branch: 'master'
+      force: true
     )
