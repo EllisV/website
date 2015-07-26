@@ -16,6 +16,11 @@ author:
 source: src
 destination: dist
 
+# Keep those files/directories during rebuilds
+keep_files:
+  - css
+  - js
+
 # _config.build.yml overwrites these options when you run `gulp build`
 # Enables future posts (posts with dates in the future) and drafts
 future: true
