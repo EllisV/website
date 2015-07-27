@@ -3,7 +3,7 @@
 title: Eligijus Vitkauskas personal blog
 description: Eligijus Vitkauskas personal blog
 lang: en
-url: localhost:3000
+url: http://localhost:3000
 
 # Same as the title etc for your site but can instead be
 # called by using 'site.author.name' and so on

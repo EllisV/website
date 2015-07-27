@@ -1,5 +1,5 @@
 # Overrides the default URL, needed for your atom feed and sitemap
-url: ellisv.github.io
+url: https://ellisv.github.io
 
 # Restoring keep_files to default value
 keep_files: ~
