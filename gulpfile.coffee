@@ -19,7 +19,7 @@ gulp.task 'jekyll-rebuild', ['jekyll:dev'], reload
 gulp.task 'jekyll:prod', ['clean'], $.shell.task('bundle exec jekyll build --config _config.yml,_config.build.yml')
 
 gulp.task 'styles', ->
-  gulp.src 'src/_assets/styles/app.sass'
+  gulp.src 'src/_assets/styles/app.scss'
     .pipe $.sass(includePaths: ['src/_assets/bower_components'])
     .pipe $.autoprefixer(['> 1%', 'last 2 versions', 'Firefox ESR', 'Opera 12.1'], cascade: true)
     .pipe $.minifyCss(compatibility: 'ie8')
