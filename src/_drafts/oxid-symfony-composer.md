@@ -11,7 +11,7 @@ OXID eShop still does not have a support for PSR-4 way of autoloading. In this p
 
 ## Symfony ClassLoader
 
-Various organizations dedicate their time to solve lower level problems such as autoloading or logging. Symfony organization is a famous and time proven maintainer of that type of components. Lets try to implement Symfony ClassLoader into OXID.
+Various organizations dedicate their time to solve problems such as autoloading or logging. Symfony organization is a famous and time proven maintainer of that type of components. Lets try to implement Symfony ClassLoader into OXID.
 
 Symfony ClassLoader provides tools to autoload your classes. Whenever you reference a class that hasn't been loaded yet, PHP uses autoloading mechanism.[^fn-symfony_classloader_intro] Symfony ClassLoader has three ways of autoloading:
 
@@ -21,7 +21,7 @@ Symfony ClassLoader provides tools to autoload your classes. Whenever you refere
 
 ### Symfony ClassLoader in OXID eShop
 
-The first thing we need to stop doing is storing all source files under document root. We are now giving ourselves a benefit of not writing custom rewriting rules for every directory or file we have. So our project directory tree would look like that:
+The first thing we need to do is stop storing all source files under document root. We are now giving ourselves a benefit of not writing custom rewriting rules for every directory or file we have. So our project directory tree would look like that:
 
 ```
 |_ ...
@@ -54,25 +54,45 @@ Create `vendor/autoload.php` which registers an autoloader:
 <?php
 // file: vendor/autoload.php
 
-require_once __DIR__.'/Symfony/Component/ClassLoader/ClassLoader.php';
+require_once __DIR__.'/Symfony/Component/ClassLoader/Psr4ClassLoader.php';
 
-use Symfony\Component\ClassLoader\ClassLoader;
+use Symfony\Component\ClassLoader\Psr4ClassLoader;
 
-$loader = new ClassLoader();
+$loader = new Psr4ClassLoader();
 
-// Enable search though include_path
-$loader->setUseIncludePath(true);
+// Register packages following PSR-4
+$loader->addPrefix('Symfony\\Component\\Yaml\\', __DIR__.'/Symfony/Component/Yaml');
 
-// Registering few PSR-0 rules
-$loader->addPrefixes(array( 
-    'Symfony' => __DIR__.'/symfony/symfony/src', 
-    'Monolog' => __DIR__.'/monolog/monolog/src', 
-));
-
-// Register class cloader
+// Register autoloader
 $loader->register();
+
+return $loader;
 {% endhighlight %}
+
+PHP supports multiple autoloading functions so we can have both old and new autoloading functions and not loose backwards compatibility.[^fn-php_spl_autoload_register] OXID eShop doesn't know about `autoload.php` file that we have recently created. To make shop aware of new autoloading we have to register it in `bootstrap.php`:
+
+{% highlight php %}
+<?php
+// file: web/bootstrap.php
+
+// ...
+
+// Register Symfony ClassLoader autoloader
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// custom functions file
+require_once OX_BASE_PATH . 'modules/functions.php';
+
+// ...
+{% endhighlight %}
+
+Now we have a full support for PSR-0 and PSR-4 in OXID eShop. Usage of third-party libraries is now much simplier because we do not need to adapt them to work with OXID autoloader. We put libraries in vendor directory and register them in `autoload.php`.
+
+## Composer
+
+To be written
 
 [PSR-0]: http://www.php-fig.org/psr/psr-0/
 [PSR-4]: http://www.php-fig.org/psr/psr-4/
 [^fn-symfony_classloader_intro]: [Symfony ClassLoader Introduction](http://symfony.com/doc/current/components/class_loader/introduction.html)
+[^fn-php_spl_autoload_register]: [PHP Manual: spl_autoload_register](http://php.net/manual/en/function.spl-autoload-register.php)
