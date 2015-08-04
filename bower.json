@@ -3,5 +3,6 @@
   "version": "0.0.0",
   "description": "Eligijus Vitkauskas personal blog",
   "dependencies": {
+    "bootstrap-sass-official": "~3.3.5"
   }
 }
