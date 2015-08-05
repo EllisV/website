@@ -207,8 +207,6 @@ We do not want to see debug outputs in production shop. Normally Symfony handles
 <?php
 // file: web/modules/eli/symfony/core/elisymfonyoxshopcontrol.php
 
-use Symfony\Component\DependencyInjection\ContainerAwareInterface;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Debug;
 
 /**
