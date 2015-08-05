@@ -166,13 +166,172 @@ After running `composer install` or `composer update` (you have to have Composer
 
 Now you are able to use any class/interface/trait which is autoloaded by Composer in your OXID project.
 
-## Why did I bother writing about Symfony ClassLoader?
+### Why did I bother writing about Symfony ClassLoader?
 
 Symfony ClassLoader chapter was written for learning purpose to show what problem Composer is designed to solve.
 
+## Integrating Symfony Debug
+
+Chittity chattity, lets see the real benefit of that and integrate Symfony Debug component as an example. We can have all components developed outside the OXID and write a module as a bridge. We will have a symfony module to bridge various Symfony components (currently only Symfony Debug in this part). Install Symfony Debug with composer by running `composer require symfony/debug` and start writing module `metadata.php`:
+
+{% highlight php %}
+<?php
+// file: web/modules/eli/symfony/metadata.php
+
+/**
+ * Metadata version
+ */
+$sMetadataVersion = '1.2';
+
+/**
+ * Module information
+ */
+$aModule = array(
+    'id'          => 'elisymfony',
+    'title'       => 'Symfony Bridge',
+    'description' => 'Provides integration for OXID with various Symfony components',
+    'thumbnail'   => 'logo.png',
+    'version'     => '0.0.1-DEV',
+    'author'      => 'Eligijus Vitkauskas',
+    'url'         => 'https://github.com/EllisV',
+    'email'       => 'eligijusvitkauskas@gmail.com',
+    'extend'      => array(
+        'oxshopcontrol' => 'eli/symfony/core/elisymfonyoxshopcontrol'
+    )
+);
+{% endhighlight %}
+
+We do not want to see debug outputs in production shop. Normally Symfony handles this by conditioning if Kernel is in develpment environment but we do yet have Symfony HttpKernel integrated. So lets rely on OXID check if shop runs in productive mode. Our `oxShopControl` extension which we specify in `elisymfonyoxshopcontrol.php` would like so:
+
+{% highlight php %}
+<?php
+// file: web/modules/eli/symfony/core/elisymfonyoxshopcontrol.php
+
+use Symfony\Component\DependencyInjection\ContainerAwareInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\Debug;
+
+/**
+ * Extension of oxShopControl OXID core class
+ *
+ * @see oxShopControl
+ */
+class eliSymfonyOxShopControl extends eliSymfonyOxShopControl_parent
+{
+    /**
+     * Set default exception handler
+     *
+     * If shop is not in productive mode than we register
+     * Symfony Debug component's Exception and Error handlers
+     * and do not call parent method
+     *
+     * Otherwise we stick to default OXID exception handler
+     */
+    protected function _setDefaultExceptionHandler()
+    {
+        if (oxRegistry::getConfig()->isProductiveMode()) {
+            parent::_setDefaultExceptionHandler();
+            return;
+        }
+
+        // It would be cool to only use Debug::enable() in here
+        // but it also registers a DebugClassLoader which will
+        // always throw an error because OXID does not care about
+        // case when refering to objects
+
+        ini_set('display_errors', 0);
+        Debug\ExceptionHandler::register();
+        $handler = Debug\ErrorHandler::register();
+        $handler->throwAt(0, true);
+    }
+
+    /**
+     * Handle system exception.
+     *
+     * If shop is not in productive mode then we rethrow the exception.
+     * Otherwise we call default OXID behavior
+     *
+     * @param oxException $oEx
+     *
+     * @throws oxException
+     */
+    protected function _handleSystemException($oEx)
+    {
+        if (oxRegistry::getConfig()->isProductiveMode()) {
+            parent::_handleSystemException($oEx);
+            return;
+        }
+
+        throw $oEx;
+    }
+
+    /**
+     * Handle cookie exception.
+     *
+     * If shop is not in productive mode then we rethrow the exception.
+     * Otherwise we call default OXID behavior
+     *
+     * @param oxException $oEx
+     *
+     * @throws oxException
+     */
+    protected function _handleCookieException($oEx)
+    {
+        if (oxRegistry::getConfig()->isProductiveMode()) {
+            parent::_handleCookieException($oEx);
+            return;
+        }
+
+        throw $oEx;
+    }
+
+    /**
+     * Handle database connection exception.
+     *
+     * If shop is not in productive mode then we rethrow the exception.
+     * Otherwise we call default OXID behavior
+     *
+     * @param oxException $oEx
+     *
+     * @throws oxException
+     */
+    protected function _handleDbConnectionException($oEx)
+    {
+        if (oxRegistry::getConfig()->isProductiveMode()) {
+            parent::_handleDbConnectionException($oEx);
+            return;
+        }
+
+        throw $oEx;
+    }
+
+    /**
+     * Handle base exception.
+     *
+     * If shop is not in productive mode then we rethrow the exception.
+     * Otherwise we call default OXID behavior
+     *
+     * @param oxException $oEx
+     *
+     * @throws oxException
+     */
+    protected function _handleBaseException($oEx)
+    {
+        if (oxRegistry::getConfig()->isProductiveMode()) {
+            parent::_handleBaseException($oEx);
+            return;
+        }
+
+        throw $oEx;
+    }
+}
+{% endhighlight %}
+
+That is it! You now have fully (except for DebugClassLoader as OXID does not respect case sensitivity) integrated Symfony Debug component without writing much code. Writing all your code outside OXID framework gives you an ability to reuse it in other projects and this makes your OXID projects more lean and maintainable as you only need modules as bridges.
+
 ## OXID and Symfony post series
 
-You may be questioning yourself what this post has to do with Symfony because the result that we've achieved during this post does not involve having any Symfony components integrated in OXID. It is a preparation post for having Symfony components which will be covered in Part 2 and Part 3 of this post series.
+This is a preparation post for having Symfony Components and Bundles. More will be covered in Part 2 and Part 3 of this post series.
 
 ## Further reading
 
