@@ -226,4 +226,30 @@ If we are compiling our container we have an ability to have extensions. The mai
 
 Symfony DependencyInjection component has way more capabilities than we have reviewed so far. We only did brief introduction to make you understand why and how to use it. Read more about Symfony DependencyInjection component read at [official website](http://symfony.com/doc/current/components/dependency_injection/introduction.html).
 
-TBD
+Create `app` directory. It will have main configuration files and `ContainerKernel.php` file which will be responsible for container extensions. Directory tree:
+
+```
+|_ app/
+|  |_ config/
+|  |  |_ config.yml
+|  |
+|  |_ ContainerKernel.php
+|_ ...
+|_ web/
+|  |_ ...
+|  |_ bootstrap.php
+|  |_ ...
+|
+|_ vendor/
+|  |_ ...
+|  |_ autoload.php
+|
+|_ composer.json
+|_ ...
+```
+
+To be continued...
+
+## Credits
+
+Explanation of Dependency Injection in general was highly inspired by Fabien Potencier slides which are available at [slideshare.net](http://www.slideshare.net/fabpot/dependency-injection-with-php-and-php-53)
