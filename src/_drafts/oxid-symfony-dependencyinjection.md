@@ -155,3 +155,75 @@ $weatherServce = $container->getService('yahoo_weather_service');
 {% endhighlight %}
 
 Now we can easily get objects which are in object container without caring about dependencies. Code becomes more maintainable because we have only the one place where we write a recipe how those objects are dependent on each other.
+
+## Symfony DependencyInjection Component
+
+As we have mentioned in the first part of this post series, there are dedicated projects which tackles specific problems and helps us not to reinvent the wheel. We have described a very simple usage of object container above but in most cases we want more from our object container, e.g. pass and use parameters or create object container from configuration file.
+
+> Symfony DependencyInjection component allows you to standardize and centralize the way objects are constructed in your application.
+
+Or to put this in other words: Symfony DependencyInjection provides us with tools to create object container. We install this component via Composer (if you do not have Composer in your project read [Part 1]({% post_url 2015-08-04-oxid-symfony-composer %}) of this post series) by requiring `symfony/dependency-injection`. Example usage of Symfony DependencyInjection:
+
+{% highlight php startinline=true %}
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Reference;
+
+$container = new ContainerBuilder();
+
+$container->register('http_client', 'HttpClient');
+$container->register('yahoo_weather_parser', 'YahooWeatherParser');
+
+$container
+    ->register('yahoo_weather_service', 'YahooWeatherService')
+    ->addArgument(new Reference('http_client'))
+    ->addArgument(new Reference('yahoo_weather_parser'));
+
+$weatherService = $container->get('yahoo_weather_service');
+{% endhighlight %}
+
+Now we can simply not worry about technical implementation of object container on your own. As we have a huge community doing maintenance for us.
+
+### Container From Configuration File
+
+We can use configuration files instead of describing object relations in PHP code. It is recommended to describe object relations in configuration files even for small applications as it is more readable. To be able to achieve that we must install Symfony Config component and Symfony Yaml if you want your configration to be in yaml format. Example code:
+
+{% highlight php startinline=true %}
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+
+$container = new ContainerBuilder();
+$loader = new YamlFileLoader($container, new FileLocator(__DIR__));
+$loader->load('services.yml');
+{% endhighlight %}
+
+And configuration file:
+
+{% highlight yaml %}
+services:
+  http_client:
+    class: HttpClient
+
+  yahoo_weather_parser:
+    class: YahooWeatherParser
+
+  yahoo_weather_service:
+    class: YahooWeatherService
+    arguments: ['@http_client', '@yahoo_weather_parser']
+{% endhighlight %}
+
+We can have lots of configuration files. This gives us an ability to group them.
+
+### Container Compilation and Extensions
+
+Symfony DependencyInjection component allows us to compile object container. There are various of reasons why we want to do this, such as: better performance or checking for potential errors.
+
+Object container can be compiled by calling `compile` method on `ContainerBuilder` object.
+
+If we are compiling our container we have an ability to have extensions. The main purpose of extension is to register new services. Extensions gives us an ability to have modular application.
+
+## Symfony DependencyInjection in OXID
+
+Symfony DependencyInjection component has way more capabilities than we have reviewed so far. We only did brief introduction to make you understand why and how to use it. Read more about Symfony DependencyInjection component read at [official website](http://symfony.com/doc/current/components/dependency_injection/introduction.html).
+
+TBD
