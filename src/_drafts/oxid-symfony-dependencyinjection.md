@@ -93,3 +93,65 @@ $weatherService = new YahooWeatherService($httpClient, $parser);
 {% endhighlight %}
 
 Now this weather service depends only on necessary classes or interfaces instead of depending on the whole registry. Also unit-testing became easier because we can pass mocks while constructing objects. But creating a new object became more complex, therefor we need object container.
+
+## Object container
+
+Object container is an object which is aware of other objects and their dependencies which are created on demand. Other object must know now that they are being controlled by object container. Lets create very primitive object container:
+
+{% highlight php %}
+<?php
+
+class Container
+{
+    protected $services = [];
+
+    public function setService($key, Closure $service)
+    {
+        $this->services[$key] = $service;
+    }
+
+    public function getService($key)
+    {
+        return $this->services[$key]($this);
+    }
+}
+{% endhighlight %}
+
+Maybe you have noticed that `setService` expects a function as a second parameter but not an actual object. This is that way because we want to create object only on demand. There is an example of usage:
+
+{% highlight php startinline=true %}
+$container = new Container;
+
+$container->setService('http_client', function ($container) {
+    static $httpClient;
+    if (null === $httpClient) {
+        $parser = new HttpClient;
+    }
+    return $httpClient;
+});
+
+$container->setService('yahoo_weather_parser', function ($container) {
+    static $parser;
+    if (null === $parser) {
+        $parser = new YahooWeatherParser;
+    }
+    return $parser;
+});
+
+$container->setService('yahoo_weather_service', function ($container) {
+    static $weatherService;
+
+    if (null !== $weatherService) {
+        return $weatherService;
+    }
+
+    $httpClient = $container->getService('http_client');
+    $parser = $container->getService('yahoo_weather_parser');
+
+    return new YahooWeatherService($httpClient, $parser);
+});
+
+$weatherServce = $container->getService('yahoo_weather_service');
+{% endhighlight %}
+
+Now we can easily get objects which are in object container without caring about dependencies. Code becomes more maintainable because we have only the one place where we write a recipe how those objects are dependent on each other.
