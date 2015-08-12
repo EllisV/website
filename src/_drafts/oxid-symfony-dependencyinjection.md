@@ -224,9 +224,11 @@ If we are compiling our container we have an ability to have extensions. The mai
 
 ## Symfony DependencyInjection in OXID
 
-Symfony DependencyInjection component has way more capabilities than we have reviewed so far. We only did brief introduction to make you understand why and how to use it. Read more about Symfony DependencyInjection component read at [official website](http://symfony.com/doc/current/components/dependency_injection/introduction.html).
+Symfony DependencyInjection component has way more capabilities than we have reviewed so far. We only did brief introduction to make you understand why and how to use it. Read more about Symfony DependencyInjection component at [official website](http://symfony.com/doc/current/components/dependency_injection/introduction.html).
 
-Create `app` directory. It will have main configuration files and `ContainerKernel.php` file which will be responsible for container extensions. Directory tree:
+Spoiler alert! We will end up not using an implementation which is described below. Container building is a responsibility of HttpKernel component. But it is still good to read an implementation to get the idea why you may want to use HttpKernel.
+
+We want to have some sort of a kernel class where we will register dependency injection container extensions and compiler passes. Lets start from top to bottom. Create `app` directory. It will have main configuration files and `ContainerKernel.php` file. Directory tree:
 
 ```
 |_ app/
@@ -247,6 +249,30 @@ Create `app` directory. It will have main configuration files and `ContainerKern
 |_ composer.json
 |_ ...
 ```
+
+So our goal for `ContainerKernel.php` is that we could register extensions like so:
+
+{% highlight php %}
+<?php
+
+class ContainerKernel
+{
+    public function registerExtensions()
+    {
+        return [
+            new ExtensionOne,
+            new ExtensionTwo
+        ];
+    }
+
+    public function registerCompilerPasses()
+    {
+        return [
+            new CompilerPassOne
+        ];
+    }
+}
+{% endhighlight %}
 
 To be continued...
 
