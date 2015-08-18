@@ -255,9 +255,11 @@ So our goal for `ContainerKernel.php` is that we could register extensions like 
 {% highlight php %}
 <?php
 
-class ContainerKernel
+use Ellis\Oxid\Bridge\DependencyInjection\ContainerKernel as BaseContainerKernel;
+
+class ContainerKernel extends BaseContainerKernel
 {
-    public function registerExtensions()
+    protected function registerExtensions()
     {
         return [
             new ExtensionOne,
@@ -265,16 +267,56 @@ class ContainerKernel
         ];
     }
 
-    public function registerCompilerPasses()
+    protected function registerCompilerPasses()
     {
         return [
             new CompilerPassOne
         ];
     }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getWebDir()
+    {
+        return __DIR__ . '/../web';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getCacheDir()
+    {
+        return $this->getWebDir() . '/tmp';
+    }
+
+    /**
+     * Load configuration to Container
+     *
+     * @param LoaderInterface $loader
+     */
+    protected function registerContainerConfiguration(LoaderInterface $loader)
+    {
+        $loader->load(__DIR__ . '/config/config.yml');
+    }
 }
 {% endhighlight %}
 
-To be continued...
+Now we need to think how we are going to make our container object accessible in OXID. I can think of three solutions:
+
+* Make Container object as singleton in ContainerBridge component
+  * PRO: we do need to change OXID
+  * CON: it is a singleton which we later have to support
+* Make Container accessible via oxRegistry with `oxRegistry::get('container')`:
+  * PRO: it is using oxRegistry which familiar amongst OXID developers
+  * CON: if you are going more Symfony way I am pretty sure you want to deprecate oxRegistry at some point of time, so you would have to readjust that again
+* Inject Container on every instance of `ContainerAwareInterface` object constructed via oxNew
+  * PRO: we are not tied to oxRegistry or any other OXID object directly
+  * CON: extension of oxNew to magically inject Container to `ContainerAwareInterface` objects
+
+I very ofter think of second and third options. Can not make my mind yet. For example implementation I am going to go with a third option.
+
+We will create a seperate component to bridge Symfony DependencyInjection into OXID.
 
 ## Credits
 
