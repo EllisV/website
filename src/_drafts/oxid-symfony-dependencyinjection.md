@@ -316,7 +316,415 @@ Now we need to think how we are going to make our container object accessible in
 
 I very ofter think of second and third options. Can not make my mind yet. For example implementation I am going to go with a third option.
 
-We will create a seperate component to bridge Symfony DependencyInjection into OXID.
+We will create a seperate component to bridge Symfony DependencyInjection into OXID. Normally this would be a seperate package installed by Composer but as we are not planning to keep this implementation for a long time lets do this within the source of our project. Edit `composer.json` to autoload files by PSR-4 rules for `src/` directory:
+
+{% highlight json %}
+{
+  "autoload": {
+    "psr-4": { "": "src/" }
+  },
+  "require": {
+    "php": "~5.4",
+    "symfony/dependency-injection": "~2.6.0",
+    "symfony/proxy-manager-bridge": "~2.6.0",
+    "symfony/config": "~2.6.0",
+    "symfony/yaml": "~2.6.0",
+  }
+}
+{% endhighlight %}
+
+And after running `composer update` you will get autoloader regenerated. So now we can implement base ContainerKernel class:
+
+{% highlight php %}
+<?php
+// file: src/Ellis/Oxid/Bridge/DependencyInjection/ContainerKernel.php
+
+namespace Ellis\Oxid\Bridge\DependencyInjection;
+
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\Config\ConfigCache;
+use Symfony\Component\DependencyInjection\ExtensionInterface;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
+use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Bridge\ProxyManager\LazyProxy\Instantiator\RuntimeInstantiator;
+use Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper\ProxyDumper;
+use Symfony\Component\Config\Loader\LoaderResolver;
+use Symfony\Component\Config\Loader\DelegatingLoader;
+use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+use Symfony\Component\DependencyInjection\Loader\IniFileLoader;
+use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
+use Symfony\Component\DependencyInjection\Loader\ClosureLoader;
+
+/**
+ * Abstract Container Kernel
+ */
+abstract class ContainerKernel
+{
+    /**
+     * @var string
+     */
+    protected $appDir;
+
+    /**
+     * @var bool
+     */
+    protected $debug;
+
+    /**
+     * Constructor.
+     *
+     * @param bool $debug
+     */
+    public function __construct($debug)
+    {
+        $this->debug = (bool) $debug;
+    }
+
+    /**
+     * Register DependencyInjection container extensions
+     *
+     * @return ExtensionInterface[]
+     */
+    abstract protected function registerExtensions();
+
+    /**
+     * Register DependencyInjection compiler passes
+     *
+     * @return CompilerPassInterface[]
+     */
+    abstract protected function registerCompilerPasses();
+
+    /**
+     * Is debug mode
+     *
+     * @return bool
+     */
+    protected function isDebug()
+    {
+        return $this->debug;
+    }
+
+    /**
+     * Get application directory path
+     *
+     * @return string
+     */
+    protected function getAppDir()
+    {
+        if (null === $this->appDir) {
+            $reflection = new \ReflectionObject($this);
+            $this->appDir = str_replace('\\', '/', dirname($reflection->getFileName()));
+        }
+
+        return $this->appDir;
+    }
+
+    /**
+     * Get web directory path
+     *
+     * @return string
+     */
+    abstract protected function getWebDir();
+
+    /**
+     * Get directory path where cache should be stored
+     *
+     * @return string
+     */
+    abstract protected function getCacheDir();
+
+    /**
+     * Gets the container class.
+     *
+     * @return string The container class
+     */
+    protected function getContainerClass()
+    {
+        return ($this->isDebug() ? 'Debug' : 'Project') . 'Container';
+    }
+
+    /**
+     * Gets the container's base class.
+     *
+     * All names except Container must be fully qualified.
+     *
+     * @return string
+     */
+    protected function getContainerBaseClass()
+    {
+        return 'Container';
+    }
+
+    /**
+     * Build service container from cache
+     *
+     * The cached version of the service container is used when fresh, otherwise the
+     * container is built.
+     */
+    public function buildContainerFromCache()
+    {
+        $class = $this->getContainerClass();
+        $cache = new ConfigCache($this->getCacheDir().'/'.$class.'.php', $this->isDebug());
+
+        if (!$cache->isFresh()) {
+            $container = $this->buildContainer();
+            $container->compile();
+            $this->dumpContainer($cache, $container, $class, $this->getContainerBaseClass());
+        }
+
+        require_once $cache;
+
+        return new $class();
+    }
+
+    /**
+     * Builds the service container.
+     *
+     * @return ContainerBuilder
+     */
+    protected function buildContainer()
+    {
+        $container = $this->getContainerBuilder();
+        $this->prepareContainer($container);
+
+        if (null !== $cont = $this->registerContainerConfiguration($this->getContainerLoader($container))) {
+            $container->merge($cont);
+        }
+
+        return $container;
+    }
+
+    /**
+     * Gets a new ContainerBuilder instance used to build the service container.
+     *
+     * @return ContainerBuilder
+     */
+    protected function getContainerBuilder()
+    {
+        $container = new ContainerBuilder(new ParameterBag($this->getKernelParameters()));
+
+        if (class_exists('ProxyManager\Configuration')) {
+            $container->setProxyInstantiator(new RuntimeInstantiator());
+        }
+
+        return $container;
+    }
+
+    /**
+     * Returns the kernel parameters.
+     *
+     * @return array An array of kernel parameters
+     */
+    protected function getKernelParameters()
+    {
+        return array(
+            'app_dir'   => $this->getAppDir(),
+            'web_dir'   => $this->getWebDir(),
+            'cache_dir' => $this->getCacheDir()
+        );
+    }
+
+    /**
+     * Prepares the ContainerBuilder before it is compiled.
+     *
+     * @param ContainerBuilder $container A ContainerBuilder instance
+     */
+    protected function prepareContainer(ContainerBuilder $container)
+    {
+        $extensions = array();
+        foreach ($this->registerExtensions() as $extension) {
+            $container->registerExtension($extension);
+            $extensions[] = $extension->getAlias();
+        }
+
+        foreach ($this->registerCompilerPasses() as $compiler) {
+            $container->addCompilerPass($compiler);
+        }
+
+        // ensure these extensions are implicitly loaded
+        $container->getCompilerPassConfig()->setMergePass(new MergeExtensionConfigurationPass($extensions));
+    }
+
+    /**
+     * Dumps the service container to PHP code in the cache.
+     *
+     * @param ConfigCache      $cache     The config cache
+     * @param ContainerBuilder $container The service container
+     * @param string           $class     The name of the class to generate
+     * @param string           $baseClass The name of the container's base class
+     */
+    protected function dumpContainer(ConfigCache $cache, ContainerBuilder $container, $class, $baseClass)
+    {
+        // cache the container
+        $dumper = new PhpDumper($container);
+
+        if (class_exists('ProxyManager\Configuration')) {
+            $dumper->setProxyDumper(new ProxyDumper());
+        }
+
+        $content = $dumper->dump(array('class' => $class, 'base_class' => $baseClass));
+        $cache->write($content, $container->getResources());
+    }
+
+    /**
+     * Returns a loader for the container.
+     *
+     * @param ContainerInterface $container The service container
+     *
+     * @return DelegatingLoader The loader
+     */
+    protected function getContainerLoader(ContainerInterface $container)
+    {
+        $locator = new FileLocator($this);
+        $resolver = new LoaderResolver(array(
+            new XmlFileLoader($container, $locator),
+            new YamlFileLoader($container, $locator),
+            new IniFileLoader($container, $locator),
+            new PhpFileLoader($container, $locator),
+            new ClosureLoader($container),
+        ));
+
+        return new DelegatingLoader($resolver);
+    }
+}
+{% endhighlight %}
+
+And `MergeExtensionConfigurationPass`:
+
+{% highlight php %}
+<?php
+// file: src/Ellis/Oxid/Bridge/DependencyInjection/MergeExtensionConfigurationPass.php
+
+namespace Ellis\Oxid\Bridge\DependencyInjection;
+
+use Symfony\Component\DependencyInjection\Compiler\MergeExtensionConfigurationPass as BaseMergeExtensionConfigurationPass;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+
+/**
+ * Ensures certain extensions are always loaded.
+ *
+ * @author Kris Wallsmith <kris@symfony.com>
+ */
+class MergeExtensionConfigurationPass extends BaseMergeExtensionConfigurationPass
+{
+    private $extensions;
+
+    public function __construct(array $extensions)
+    {
+        $this->extensions = $extensions;
+    }
+
+    public function process(ContainerBuilder $container)
+    {
+        foreach ($this->extensions as $extension) {
+            if (!count($container->getExtensionConfig($extension))) {
+                $container->loadFromExtension($extension, array());
+            }
+        }
+
+        parent::process($container);
+    }
+}
+{% endhighlight %}
+
+Great! Now we need to build this Container in OXID so we could use it. We could do this via module but we might want to use Container parameters in `config.inc.php` so lets create bootstrap file independent from OXID:
+
+{% highlight php %}
+<?php
+// file: web/containerbootstrap.php
+
+if (!class_exists('\Composer\Autoload\ClassLoader')) {
+    require_once __DIR__.'/../vendor/autoload.php';
+}
+
+global $container;
+
+if ($container === null) {
+    require_once __DIR__.'/../app/ContainerKernel.php';
+    $debug = getenv('SYMFONY_DEBUG') !== '0' && getenv('SYMFONY_ENV') !== 'prod';
+    $kernel = new ContainerKernel($debug);
+    $container = $kernel->buildContainerFromCache();
+}
+{% endhighlight %}
+
+And bootstrap it in `bootstrap.php`:
+
+{% highlight php %}
+<?php
+// file: web/bootstrap.php
+
+// ...
+
+// load composer autoloader
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// initialize container
+require_once __DIR__ . '/containerbootstrap.php';
+
+// ...
+{% endhighlight %}
+
+Ok. Now we have something more to add to our Symfony module. We will create `oxUtilsObject` extension. So first register this in metadata:
+
+{% highlight php %}
+<?php
+// file: web/modules/eli/symfony/metadata.php
+
+// ...
+
+$aModule = array(
+    // ...
+    extend => array(
+        // ...
+        'oxutilsobject' => 'eli/symfony/core/elisymfonyoxutilsobject',
+        // ...
+    ),
+    // ...
+);
+{% endhighlight %}
+
+And the extension:
+
+{% highlight php %}
+<?php
+// file: web/modules/eli/symfony/core/elisymfonyoxutilsobject.php
+
+use Symfony\Component\DependencyInjection\ContainerAwareInterface;
+
+/**
+ * Extension of oxUtilsObject OXID core class
+ *
+ * @see oxUtilsObject
+ */
+class eliSymfonyOxUtilsObject extends eliSymfonyOxUtilsObject_parent
+{
+    /**
+     * Injects DependencyInjection container on ContainerAwareInterface
+     * instances.
+     *
+     * oxNew() uses this method to build objects, so we are basically
+     * providing a way of having a container on all OXID objects
+     * which are ContainerAwareInterface instances.
+     */
+    protected function _getObject($sClassName, $iArgCnt, $aParams)
+    {
+        $oObject = parent::_getObject($sClassName, $iArgCnt, $aParams);
+
+        if ($oObject instanceof ContainerAwareInterface) {
+            global $container;
+            $oObject->setContainer($container);
+        }
+
+        return $oObject;
+    }
+}
+{% endhighlight %}
+
+Congratulations! You can now have container injected in any OXID object. How can you benefit from this you might think. You can create components independent from OXID itself, register it as container extension and create a lean modules as bridges to use that in OXID project.
 
 ## Credits
 
