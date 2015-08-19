@@ -3,7 +3,7 @@ layout: post
 title: OXID and Symfony Part 2&#58; DependencyInjection
 ---
 
-Modern PHP application has lots of objects which are responsible for various things like email sending or data retrieval from database. Chances are great that you may want to have objects inside another one, especially if you follow [Single Responsibility Principle](https://en.wikipedia.org/wiki/Single_responsibility_principle). This part of OXID and Symfony post series will focus on explaining why [Dependency Injection](https://en.wikipedia.org/wiki/Dependency_injection) and showing how to have [Symfony DependencyInjection](http://symfony.com/doc/current/components/dependency_injection/introduction.html) component in OXID eShop.
+Modern PHP application has lots of objects which are responsible for various things like email sending or data retrieval from database. Chances are great that you may want to have objects inside inside other objects, especially if you follow [Single Responsibility Principle](https://en.wikipedia.org/wiki/Single_responsibility_principle). This part of OXID and Symfony post series will focus on explaining why to use [Dependency Injection](https://en.wikipedia.org/wiki/Dependency_injection) and showing how to have [Symfony DependencyInjection](http://symfony.com/doc/current/components/dependency_injection/introduction.html) component in OXID eShop.
 
 I believe learning by example is the best way to learn, so lets discuss a case for WeatherService which:
 
@@ -32,12 +32,12 @@ class YahooWeatherService implements WeatherServiceInterface
 
     public function getWeatherForLocation(Location $location)
     {
-        $data = $this->client->get(static::URL, [
+        $data = $this->httpClient->get(static::URL, [
             'longitude' => $location->getLongitude(),
             'latitude'  => $location->getLatitude()
         ]);
 
-        return $this->parse->parseWeather($data);
+        return $this->parser->parseWeather($data);
     }
 }
 
@@ -47,7 +47,7 @@ $weatherService = new YahooWeatherService;
 
 DO NOT rush to facepalm just yet. First we are going to do this a wrong way so we would know a reason why it shouldn't be that way.
 
-It is easy to create objects if you do it like in the example above but it is really hard to configure objects that this service depends on. What if `HttpClient` and `YahooDataParser` requires some parameters while constructing them. Everything would be hard coded into `YahooWeatherService` class. Also, every new instance of `YahooWeatherService` would create new instances for classes that it depends on (yes, `YahooWeatherService` is not that good of an example for this point, but `Product` class would me). We could solve this problem by using [registries](https://github.com/domnikl/DesignPatternsPHP/tree/master/Structural/Registry):
+It is easy to create objects if you do it like in the example above but it is really hard to configure objects that this service depends on. What if `HttpClient` and `YahooDataParser` requires some parameters while constructing them. Everything would be hard coded into `YahooWeatherService` class. Also, every new instance of `YahooWeatherService` would create new instances for classes that it depends on (yes, `YahooWeatherService` is not that good of an example for this point, but `Product` class would be). We could solve this problem by using [registries](https://github.com/domnikl/DesignPatternsPHP/tree/master/Structural/Registry):
 
 {% highlight php %}
 <?php
@@ -96,7 +96,7 @@ Now this weather service depends only on necessary classes or interfaces instead
 
 ## Object container
 
-Object container is an object which is aware of other objects and their dependencies which are created on demand. Other object must know now that they are being controlled by object container. Lets create very primitive object container:
+Object container is an object which is aware of other objects and their dependencies which are created on demand. Other objects must not know that they are being controlled by object container. Lets create very primitive object container:
 
 {% highlight php %}
 <?php
@@ -668,7 +668,7 @@ require_once __DIR__ . '/containerbootstrap.php';
 // ...
 {% endhighlight %}
 
-Ok. Now we have something more to add to our Symfony module. We will create `oxUtilsObject` extension. So first register this in metadata:
+Ok. Now we have something to add to our Symfony module. We will create `oxUtilsObject` extension. So first register this in metadata:
 
 {% highlight php %}
 <?php
