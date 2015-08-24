@@ -1,6 +1,7 @@
 ---
 layout: post
 title: OXID and Symfony Part 3&#58; HttpKernel
+category: oxid
 ---
 
 [Symfony HttpKernel][1] component provides us with tools for handling HTTP requests and

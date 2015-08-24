@@ -1,6 +1,7 @@
 ---
 layout: post
 title: OXID and Symfony Part 1&#58; Composer
+category: oxid
 ---
 
 Everyone who has been developing e-commerce projects with OXID eShop knows the routine when they have to integrate third-party libraries within their modules. It's registering all files in module metadata or worse - requiring them directly. It has been always the case in PHP world because every framework had their own autoloading algorithms until [PSR-0][PSR-0] and later [PSR-4][PSR-4] came out.
